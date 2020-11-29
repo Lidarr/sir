@@ -467,6 +467,10 @@ def _watch_impl(entities):
                 handler.connection.drain_events(timeout)
             except socket_error:
                 # In case of a timeout, simply continue
+                # If we don't have anything pending to process, reset the last message
+                # timer so we don't immediately process the first one that arrives
+                if len(handler.pending_messages) == 0:
+                    handler.last_message = time.time()
                 pass
             except Exception as exc:
                 # Do not log system call interruption in case of SIGTERM or SIGINT
