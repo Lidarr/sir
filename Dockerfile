@@ -7,56 +7,42 @@ ARG SIR_VERSION
 ARG PYTHON_VERSION
 ARG BASE_IMAGE_DATE
 
-ARG BUILD_DATE
-ARG VCS_REF
+LABEL org.metabrainz.based-on-image="metabrainz/python:${PYTHON_VERSION}"
+LABEL org.opencontainers.image.source https://github.com/lidarr/sir
 
-LABEL org.label-schema.build-date=${BUILD_DATE} \
-      org.label-schema.schema-version="1.0.0-rc1" \
-      org.label-schema.vcs-url="https://github.com/metabrainz/sir.git" \
-      org.label-schema.vcs-ref=${VCS_REF} \
-      org.label-schema.vendor="MetaBrainz Foundation" \
-      org.metabrainz.based-on-image="metabrainz/python:${PYTHON_VERSION}-${BASE_IMAGE_DATE}" \
-      org.metabrainz.sir.version=${SIR_VERSION}
+ARG DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-                    build-essential \
-                    ca-certificates \
-                    cron \
-                    git \
-                    libpq-dev \
-                    libffi-dev \
-                    libssl-dev \
-                    libxml2-dev \
-                    libxslt1-dev && \
-    rm -rf /var/lib/apt/lists/*
+#######################
+# From metabrainz/sir #
+#######################
 
-# PostgreSQL client
-RUN apt-key adv --keyserver ha.pool.sks-keyservers.net --recv-keys B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8
-ENV PG_MAJOR 9.5
-RUN echo 'deb http://apt.postgresql.org/pub/repos/apt/ jessie-pgdg main' $PG_MAJOR > /etc/apt/sources.list.d/pgdg.list
-RUN apt-get update && \
-    apt-get install -y postgresql-client-$PG_MAJOR && \
-    rm -rf /var/lib/apt/lists/*
-# Specifying password so that client doesn't ask scripts for it...
-ENV PGPASSWORD "sir"
+RUN apt-get update \
+    && apt-get install --no-install-recommends -qy \
+      ca-certificates \
+      cron \
+      gcc \
+      git \
+      libc6-dev \
+      # TODO: check if this is actually needed
+      libffi-dev \
+      # required for connections of pip packages
+      libssl-dev \
+      # required for psycopg2. Installs without it but links against a wrong .so.
+      libpq-dev \
+      # required by lxml from mb-rngpy
+      libxslt1-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir /code
+##################
+# Installing sir #
+##################
+
 WORKDIR /code
-
-# Python dependencies
-COPY ./requirements.txt /code/
-RUN pip install -r requirements.txt
-
 COPY . /code/
+RUN pip --disable-pip-version-check --no-cache-dir install -r requirements.txt \
+    && rm -f /code/config.ini \
+    && touch /etc/consul-template.conf \
+    && mkdir sql
 
-############
-# Services #
-############
-
-# Consul Template service is already set up with the base image.
-# Just need to copy the configuration.
-COPY ./docker/prod/consul-template.conf /etc/consul-template.conf
-
-COPY ./docker/prod/indexer/indexer.service /etc/service/indexer/run
-RUN chmod 755 /etc/service/indexer/run
+ENV POSTGRES_USER=musicbrainz
+ENV POSTGRES_PASSWORD=musicbrainz
