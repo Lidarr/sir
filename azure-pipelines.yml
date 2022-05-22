@@ -1,0 +1,51 @@
+variables:
+  majorVersion: '2.0'
+  minorVersion: $[counter('minorVersion', 1)]
+  version: '$(majorVersion).$(minorVersion)'
+  buildName: '$(Build.SourceBranchName).$(version)'
+
+trigger:
+  branches:
+    include:
+      - master
+
+pr:
+  - master
+
+jobs:
+  - job:
+    displayName: Setup
+    pool:
+      vmImage: 'Ubuntu-22.04'
+    steps:
+      - powershell: Write-Host "##vso[build.updatebuildnumber]$($env:VERSION)"
+        displayName: Set Build Name
+
+  - job:
+    displayName: Build sir
+    pool:
+      vmImage: 'Ubuntu-22.04'
+    steps:
+      - task: Docker@2
+        displayName: Build and push latest image
+        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+        inputs:
+          containerRegistry: 'ghcr'
+          repository: lidarr/mb-sir
+          command: buildAndPush
+          Dockerfile: Dockerfile.prod
+          tags: |
+            latest
+            $(Build.SourceBranchName)
+            $(version)
+
+      - task: Docker@2
+        displayName: Build PR image
+        condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+        inputs:
+          containerRegistry: 'ghcr'
+          repository: lidarr/mb-sir
+          command: build
+          Dockerfile: Dockerfile.prod
+          tags: |
+            pr-$(System.PullRequest.PullRequestNumber)
