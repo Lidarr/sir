@@ -68,7 +68,7 @@ def merge_paths(field_paths):
 def defer_everything_but(mapper, load, *columns):
     primary_keys = [c.name for c in mapper.primary_key]
     for prop in mapper.iterate_properties:
-        if hasattr(prop, "columns"):
+        if hasattr(prop, "columns") and not isinstance(prop, CompositeProperty):
             key = prop.key
             if (key not in columns and key[:-3] not in columns and
                 key[-3:] != "_id" and key != "position" and
@@ -212,7 +212,7 @@ class SearchEntity(object):
                             partial(is_composite_column, model),
                             required_columns)
                         for composite_column in composite_columns:
-                            composite_parts = (c.name for c in
+                            composite_parts = list(c.name for c in
                                                getattr(model,
                                                        composite_column).
                                                property.columns)
