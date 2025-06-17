@@ -36,8 +36,9 @@ jobs:
           Dockerfile: Dockerfile.prod
           tags: |
             latest
-            $(Build.SourceBranchName)
             $(version)
+            $(majorVersion)
+            $(Build.SourceBranchName)
 
       - task: Docker@2
         displayName: Build PR image
